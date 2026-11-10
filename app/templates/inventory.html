@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Warehouse & Inventory Management{% endblock %}
+
+{% block content %}
+<div class="inventory-wrapper">
+    <!-- Header -->
+    <div class="page-header flex-between">
+        <div>
+            <h1 class="page-title">Multi-Warehouse Inventory &amp; Stock Browser</h1>
+            <p class="page-subtitle">Real-time stock invariants: \(Q_{\text{available}} = Q_{\text{on\_hand}} - Q_{\text{reserved}} \ge 0\) across strategic distribution hubs.</p>
+        </div>
+        <div class="header-actions">
+            <button type="button" class="btn btn-primary" onclick="window.IMS.openRestockModal()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Restock Batch
+            </button>
+        </div>
+    </div>
+
+    <!-- Filter & Selector Bar -->
+    <div class="filter-card">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label for="warehouseFilter" class="filter-label">Warehouse Facility:</label>
+                <select id="warehouseFilter" class="form-control" onchange="window.IMS.filterInventoryTable()">
+                    <option value="all" selected>All Warehouses (4 Facilities)</option>
+                    <option value="wh-01">Chicago Central Distribution Center (wh-01)</option>
+                    <option value="wh-02">Detroit Regional Distribution Center (wh-02)</option>
+                    <option value="wh-03">Columbus Transit Cross-Dock (wh-03)</option>
+                    <option value="wh-04">New York Last-Mile Facility (wh-04)</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="categoryFilter" class="filter-label">Category:</label>
+                <select id="categoryFilter" class="form-control" onchange="window.IMS.filterInventoryTable()">
+                    <option value="all" selected>All Categories</option>
+                    <option value="Electronics">Electronics</option>
+                    <option value="Pharmaceuticals">Pharmaceuticals</option>
+                    <option value="Industrial">Industrial</option>
+                </select>
+            </div>
+
+            <div class="filter-group search-group">
+                <label for="inventorySearch" class="filter-label">Search Catalog:</label>
+                <input type="text" id="inventorySearch" class="form-control" placeholder="Search by SKU, Product Name, or Bin..." oninput="window.IMS.filterInventoryTable()">
+            </div>
+
+            <div class="filter-group toggle-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="lowStockToggle" onchange="window.IMS.filterInventoryTable()">
+                    <span>Low Stock Only (\(Q_{\text{avail}} \le \text{ROP}\))</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Data Table Card -->
+    <div class="dashboard-panel">
+        <div class="panel-header flex-between">
+            <h3 class="panel-title">Physical Bin Stock Inventory Ledger</h3>
+            <span class="cache-badge" id="inventoryCacheBadge">⚡ Cache-Aside (TTL: 300s)</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table" id="inventoryTable">
+                <thead>
+                    <tr>
+                        <th>Product &amp; SKU</th>
+                        <th>Category</th>
+                        <th>Warehouse</th>
+                        <th>Bin Location</th>
+                        <th class="text-right">Unit Price</th>
+                        <th class="text-right">On-Hand</th>
+                        <th class="text-right">Reserved</th>
+                        <th class="text-right">Available</th>
+                        <th class="text-right">Reorder Pt</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="inventoryTableBody">
+                    <!-- Sample / Pre-rendered Rows with Real Seed Data -->
+                    <tr data-warehouse="wh-01" data-category="Electronics" data-sku="SKU-ELEC-01" data-lowstock="false">
+                        <td>
+                            <strong>Industrial IoT GPS Telemetry Beacon</strong><br>
+                            <code class="sku-tag">prod-01 (SKU-ELEC-01)</code>
+                        </td>
+                        <td><span class="pill-badge">Electronics</span></td>
+                        <td>Chicago CDC (wh-01)</td>
+                        <td><code>WH-CHI-ZN-A-AI01-RK01-SH01-BN01</code></td>
+                        <td class="text-right">$149.99</td>
+                        <td class="text-right"><strong>150</strong></td>
+                        <td class="text-right text-warning">10</td>
+                        <td class="text-right text-success"><strong>140</strong></td>
+                        <td class="text-right">25</td>
+                        <td class="text-center"><span class="badge-status status-healthy">In Stock</span></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-xs btn-outline" onclick="window.IMS.quickRestock('wh-01', 'prod-01', 'SKU-ELEC-01')">Restock</button>
+                        </td>
+                    </tr>
+
+                    <tr data-warehouse="wh-02" data-category="Electronics" data-sku="SKU-ELEC-01" data-lowstock="false">
+                        <td>
+                            <strong>Industrial IoT GPS Telemetry Beacon</strong><br>
+                            <code class="sku-tag">prod-01 (SKU-ELEC-01)</code>
+                        </td>
+                        <td><span class="pill-badge">Electronics</span></td>
+                        <td>Detroit RDC (wh-02)</td>
+                        <td><code>WH-DET-ZN-A-AI01-RK01-SH01-BN01</code></td>
+                        <td class="text-right">$149.99</td>
+                        <td class="text-right"><strong>80</strong></td>
+                        <td class="text-right text-warning">5</td>
+                        <td class="text-right text-success"><strong>75</strong></td>
+                        <td class="text-right">25</td>
+                        <td class="text-center"><span class="badge-status status-healthy">In Stock</span></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-xs btn-outline" onclick="window.IMS.quickRestock('wh-02', 'prod-01', 'SKU-ELEC-01')">Restock</button>
+                        </td>
+                    </tr>
+
+                    <tr data-warehouse="wh-01" data-category="Pharmaceuticals" data-sku="SKU-VAX-MRNA-01" data-lowstock="false">
+                        <td>
+                            <strong>Ultra-Cold mRNA Vaccine Vials (Pack of 25)</strong><br>
+                            <code class="sku-tag">prod_phar_001 (SKU-VAX-MRNA-01)</code>
+                        </td>
+                        <td><span class="pill-badge bg-info">Pharmaceuticals</span></td>
+                        <td>Chicago CDC (wh-01)</td>
+                        <td><code>WH-CHI-COLD-01</code></td>
+                        <td class="text-right">$850.00</td>
+                        <td class="text-right"><strong>50</strong></td>
+                        <td class="text-right text-warning">20</td>
+                        <td class="text-right text-success"><strong>30</strong></td>
+                        <td class="text-right">20</td>
+                        <td class="text-center"><span class="badge-status status-healthy">In Stock</span></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-xs btn-outline" onclick="window.IMS.quickRestock('wh-01', 'prod_phar_001', 'SKU-VAX-MRNA-01')">Restock</button>
+                        </td>
+                    </tr>
+
+                    <tr data-warehouse="wh-02" data-category="Industrial" data-sku="SKU-HYDR-VLV-01" data-lowstock="true">
+                        <td>
+                            <strong>High-Pressure Hydraulic Control Valve</strong><br>
+                            <code class="sku-tag">prod_ind_001 (SKU-HYDR-VLV-01)</code>
+                        </td>
+                        <td><span class="pill-badge bg-secondary">Industrial</span></td>
+                        <td>Detroit RDC (wh-02)</td>
+                        <td><code>WH-DET-ZN-A-AI01-RK01-SH01-BN01</code></td>
+                        <td class="text-right">$385.00</td>
+                        <td class="text-right text-danger"><strong>0</strong></td>
+                        <td class="text-right">0</td>
+                        <td class="text-right text-danger"><strong>0</strong></td>
+                        <td class="text-right">12</td>
+                        <td class="text-center"><span class="badge-status status-out">Out of Stock</span></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-xs btn-primary" onclick="window.IMS.quickRestock('wh-02', 'prod_ind_001', 'SKU-HYDR-VLV-01')">Restock</button>
+                        </td>
+                    </tr>
+
+                    <tr data-warehouse="wh-03" data-category="Pharmaceuticals" data-sku="SKU-VAX-MRNA-01" data-lowstock="true">
+                        <td>
+                            <strong>Ultra-Cold mRNA Vaccine Vials (Pack of 25)</strong><br>
+                            <code class="sku-tag">prod_phar_001 (SKU-VAX-MRNA-01)</code>
+                        </td>
+                        <td><span class="pill-badge bg-info">Pharmaceuticals</span></td>
+                        <td>Columbus Hub (wh-03)</td>
+                        <td><code>WH-CMH-COLD-01</code></td>
+                        <td class="text-right">$850.00</td>
+                        <td class="text-right text-warning"><strong>12</strong></td>
+                        <td class="text-right">0</td>
+                        <td class="text-right text-warning"><strong>12</strong></td>
+                        <td class="text-right">20</td>
+                        <td class="text-center"><span class="badge-status status-low">Low Stock Alert</span></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-xs btn-primary" onclick="window.IMS.quickRestock('wh-03', 'prod_phar_001', 'SKU-VAX-MRNA-01')">Restock</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Restock Modal Dialog -->
+<div class="modal-backdrop d-none" id="restockModalBackdrop">
+    <div class="modal-dialog">
+        <div class="modal-header flex-between">
+            <h3 class="modal-title">Inventory Restock Allocation Form</h3>
+            <button type="button" class="modal-close" onclick="window.IMS.closeRestockModal()">&times;</button>
+        </div>
+        <form id="restockForm" onsubmit="event.preventDefault(); window.IMS.submitRestock();">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="restockWarehouse" class="form-label">Destination Warehouse:</label>
+                    <select id="restockWarehouse" class="form-control" required>
+                        <option value="wh-01">Chicago Central Distribution Center (wh-01)</option>
+                        <option value="wh-02">Detroit Regional Distribution Center (wh-02)</option>
+                        <option value="wh-03">Columbus Transit Cross-Dock Hub (wh-03)</option>
+                        <option value="wh-04">New York Last-Mile Facility (wh-04)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="restockProduct" class="form-label">Product SKU:</label>
+                    <select id="restockProduct" class="form-control" required>
+                        <option value="prod-01">prod-01 - Industrial IoT GPS Telemetry Beacon</option>
+                        <option value="prod-02">prod-02 - Edge AI Telematics Gateway Controller</option>
+                        <option value="prod_phar_001">prod_phar_001 - Ultra-Cold mRNA Vaccine Vials</option>
+                        <option value="prod_ind_001">prod_ind_001 - High-Pressure Hydraulic Control Valve</option>
+                        <option value="prod-rare">prod-rare - Rare Precision Avionics Component</option>
+                    </select>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label for="restockQuantity" class="form-label">Restock Quantity:</label>
+                        <input type="number" id="restockQuantity" class="form-control" min="1" max="10000" value="50" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="restockBatch" class="form-label">Batch / Lot Number:</label>
+                        <input type="text" id="restockBatch" class="form-control" placeholder="BATCH-2026-RESTOCK" value="BATCH-2026-RESTOCK">
+                    </div>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label for="restockBin" class="form-label">Storage Bin Code (Optional):</label>
+                        <input type="text" id="restockBin" class="form-control" placeholder="e.g. WH-CHI-COLD-01">
+                    </div>
+                    <div class="form-group">
+                        <label for="restockActor" class="form-label">Warehouse Manager ID:</label>
+                        <input type="text" id="restockActor" class="form-control" value="user_wm_chi" readonly>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer flex-end">
+                <button type="button" class="btn btn-secondary" onclick="window.IMS.closeRestockModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="submitRestockBtn">Confirm Restock</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

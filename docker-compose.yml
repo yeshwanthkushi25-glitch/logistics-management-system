@@ -1,0 +1,44 @@
+# =============================================================================
+# Logistics Information Management System (Logistics IMS)
+# Docker Compose Multi-Container Academic Evaluation Configuration
+# =============================================================================
+
+version: '3.8'
+
+services:
+  logistics-ims:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: logistics-ims-core
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=eval-secret-academic-logistics-ims-key-32b
+      - JWT_SECRET=eval-jwt-secret-academic-logistics-ims-32b
+      - JWT_EXPIRATION_SECONDS=86400
+      - DATABASE_PATH=/app/data/logistics.db
+      - CACHE_TYPE=memory
+      - CACHE_MAX_ENTRIES=2000
+      - CACHE_DEFAULT_TTL=300
+      - STORAGE_BACKEND=local
+      - STORAGE_LOCAL_DIR=/app/storage/uploads
+      - STORAGE_BASE_URL=/static/uploads
+    volumes:
+      # Persistent host directory mounts for relational database WAL & storage
+      - ./data:/app/data
+      - ./storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - logistics-net
+
+networks:
+  logistics-net:
+    driver: bridge

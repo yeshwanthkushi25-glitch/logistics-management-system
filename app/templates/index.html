@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Overview{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+    <!-- Welcome Header -->
+    <div class="page-header flex-between">
+        <div>
+            <h1 class="page-title">Executive Operations Dashboard</h1>
+            <p class="page-subtitle">Real-time multi-modal logistics telemetry, warehouse invariants, and transaction metrics.</p>
+        </div>
+        <div class="header-actions">
+            <button id="refreshKpisBtn" class="btn btn-secondary" onclick="window.IMS.refreshDashboardKPIs()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                Sync Metrics
+            </button>
+            <a href="{{ url_for('web.tracking') }}" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Track Consignment
+            </a>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards (4 Cards) -->
+    <div class="kpi-grid">
+        <!-- Card 1: Total Inventory Items -->
+        <div class="kpi-card card-blue">
+            <div class="kpi-icon-wrapper">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            </div>
+            <div class="kpi-content">
+                <span class="kpi-label">Total Inventory Units</span>
+                <h2 class="kpi-value" id="kpiTotalInventory">{{ total_inventory_units | default(893) }}</h2>
+                <div class="kpi-subtext">
+                    <span class="text-success">● 4 Hubs Active</span> &bull; 
+                    <span class="text-warning" id="kpiLowStockAlerts">{{ low_stock_count | default(3) }} Low Stock Alerts</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Active Orders -->
+        <div class="kpi-card card-indigo">
+            <div class="kpi-icon-wrapper">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+            </div>
+            <div class="kpi-content">
+                <span class="kpi-label">Active Orders</span>
+                <h2 class="kpi-value" id="kpiActiveOrders">{{ active_orders_count | default(12) }}</h2>
+                <div class="kpi-subtext">
+                    <span class="text-success">100% ACID Integrity</span> &bull; 
+                    <span>Zero Orphaned Locks</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 3: Shipments in Transit -->
+        <div class="kpi-card card-amber">
+            <div class="kpi-icon-wrapper">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+            </div>
+            <div class="kpi-content">
+                <span class="kpi-label">Shipments in Transit</span>
+                <h2 class="kpi-value" id="kpiInTransitShipments">{{ in_transit_shipments | default(5) }}</h2>
+                <div class="kpi-subtext">
+                    <span class="badge-status status-intransit">7-State FSM Verified</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4: Cache Hit Ratio -->
+        <div class="kpi-card card-emerald">
+            <div class="kpi-icon-wrapper">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <div class="kpi-content">
+                <span class="kpi-label">Cache Acceleration</span>
+                <h2 class="kpi-value" id="kpiCacheHitRatio">{{ cache_hit_ratio | default("96.8%") }}</h2>
+                <div class="kpi-subtext">
+                    <span id="kpiCacheHits">{{ cache_hits | default(142) }} Hits</span> &bull; 
+                    <span id="kpiCacheMisses">{{ cache_misses | default(5) }} Misses</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Action Shortcuts -->
+    <div class="shortcuts-panel">
+        <h3 class="section-title">Operational Shortcuts</h3>
+        <div class="shortcuts-grid">
+            <a href="{{ url_for('web.tracking') }}?trk=TRK-CHI-NYC-8801" class="shortcut-item">
+                <div class="shortcut-icon icon-search">🔍</div>
+                <div class="shortcut-body">
+                    <strong>Track TRK-CHI-NYC-8801</strong>
+                    <span>Delivered consignment with milestone chain</span>
+                </div>
+            </a>
+            <a href="{{ url_for('web.tracking') }}?trk=TRK-CHI-DET-9902" class="shortcut-item">
+                <div class="shortcut-icon icon-truck">🚚</div>
+                <div class="shortcut-body">
+                    <strong>Track TRK-CHI-DET-9902</strong>
+                    <span>Active In-Transit linehaul with live IoT telemetry</span>
+                </div>
+            </a>
+            <a href="{{ url_for('web.inventory') }}" class="shortcut-item">
+                <div class="shortcut-icon icon-box">📦</div>
+                <div class="shortcut-body">
+                    <strong>Stock Replenishment</strong>
+                    <span>Inspect multi-warehouse bins & submit restock batch</span>
+                </div>
+            </a>
+            <a href="{{ url_for('web.network') }}" class="shortcut-item">
+                <div class="shortcut-icon icon-route">🌐</div>
+                <div class="shortcut-body">
+                    <strong>Graph Routing & Bottlenecks</strong>
+                    <span>Dijkstra least-cost routing & outage simulation</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Two-Column Operational View -->
+    <div class="grid-2col">
+        <!-- Left: Recent Activity Timeline -->
+        <div class="dashboard-panel">
+            <div class="panel-header flex-between">
+                <h3 class="panel-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                    Recent Logistics Activity
+                </h3>
+                <span class="live-pill"><span class="dot"></span> Live Stream</span>
+            </div>
+            <div class="timeline-container" id="recentActivityTimeline">
+                <!-- Chronological items -->
+                <div class="timeline-item">
+                    <div class="timeline-marker marker-green"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <strong class="timeline-title">Delivery Completed (POD Captured)</strong>
+                            <span class="timeline-time">Today, 21:15</span>
+                        </div>
+                        <p class="timeline-desc">Consignment <code>TRK-CHI-NYC-8801</code> delivered to Customer Destination, New York. Digital signature captured and archived.</p>
+                        <span class="badge-sub">Driver: David Chen &bull; Lat: 40.7484, Lon: -73.9857</span>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-marker marker-amber"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <strong class="timeline-title">IoT Telemetry Ping Ingested (NoSQL)</strong>
+                            <span class="timeline-time">Today, 14:45</span>
+                        </div>
+                        <p class="timeline-desc">Consignment <code>TRK-CHI-DET-9902</code> GPS: 42.0512, -85.1201 &bull; Temp: 3.8°C &bull; Speed: 84 km/h &bull; Shock: 0.12G (Cold-chain Safe).</p>
+                        <span class="badge-sub">Collection: shipment_telemetry &bull; Status: IN_TRANSIT</span>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-marker marker-blue"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <strong class="timeline-title">Linehaul Departed Origin CDC Gate 2</strong>
+                            <span class="timeline-time">Today, 14:00</span>
+                        </div>
+                        <p class="timeline-desc">Refrigerated linehaul departed Chicago CDC toward Detroit Regional Hub. Milestone recorded with cache invalidation.</p>
+                        <span class="badge-sub">Milestone: DEPARTURE_SCAN &bull; Actor: user_driver</span>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-marker marker-purple"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <strong class="timeline-title">Atomic Multi-Warehouse Order Placement</strong>
+                            <span class="timeline-time">Today, 10:12</span>
+                        </div>
+                        <p class="timeline-desc">Order <code>ORD-2026-1002</code> placed. 1x Ultra-Cold Vaccine reserved in Chicago CDC with immediate transaction commit.</p>
+                        <span class="badge-sub">Order Total: $850.00 &bull; Stock Invariant Verified</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Multi-Model Architecture Health -->
+        <div class="dashboard-panel">
+            <div class="panel-header">
+                <h3 class="panel-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                    Database Engine Subsystems
+                </h3>
+            </div>
+            <div class="subsystems-list">
+                <div class="subsystem-row">
+                    <div class="subsystem-info">
+                        <strong>Relational Store (SQLite 3.53+ WAL)</strong>
+                        <span>10 Operational Entities, Foreign Keys, Strict Check Constraints</span>
+                    </div>
+                    <span class="badge-pill bg-success">WAL Mode (PRAGMA journal_mode=WAL)</span>
+                </div>
+
+                <div class="subsystem-row">
+                    <div class="subsystem-info">
+                        <strong>NoSQL Document Engine (JSON1)</strong>
+                        <span>Polymorphic IoT GPS, shock telemetry & immutable audit logs</span>
+                    </div>
+                    <span class="badge-pill bg-info">Collections: telemetry, audit, snapshots</span>
+                </div>
+
+                <div class="subsystem-row">
+                    <div class="subsystem-info">
+                        <strong>Graph Routing Engine</strong>
+                        <span>Dijkstra Shortest Path, A* Haversine & Bottleneck Analysis</span>
+                    </div>
+                    <span class="badge-pill bg-primary">NetworkX & Recursive CTE</span>
+                </div>
+
+                <div class="subsystem-row">
+                    <div class="subsystem-info">
+                        <strong>Thread-Safe Cache Manager</strong>
+                        <span>Cache-Aside pattern, TTL expiration & wildcard pattern eviction</span>
+                    </div>
+                    <span class="badge-pill bg-success">LRU Thread-Safe Cache</span>
+                </div>
+
+                <div class="subsystem-row">
+                    <div class="subsystem-info">
+                        <strong>Cryptographic Security & RBAC</strong>
+                        <span>PBKDF2 HMAC-SHA256 passwords, stateless JWT tokens</span>
+                    </div>
+                    <span class="badge-pill bg-warning">5-Role Security Matrix</span>
+                </div>
+
+                <div class="subsystem-row">
+                    <div class="subsystem-info">
+                        <strong>Cloud Storage Abstraction</strong>
+                        <span>Boto3 AWS S3 Client with LocalStorageFallback for POD proofs</span>
+                    </div>
+                    <span class="badge-pill bg-info">S3 / Local Fallback Active</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Logistics Network Routing Engine{% endblock %}
+
+{% block content %}
+<div class="network-wrapper">
+    <!-- Header -->
+    <div class="page-header flex-between">
+        <div>
+            <h1 class="page-title">Network Graph Routing &amp; Bottleneck Visualizer</h1>
+            <p class="page-subtitle">Multi-modal directed graph \(G = (V, E)\) with Dijkstra shortest-path, A* Haversine heuristic, and dynamic outage resilience.</p>
+        </div>
+        <div class="header-actions">
+            <button type="button" class="btn btn-secondary" onclick="window.IMS.loadBottlenecks()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                Scan Bottlenecks
+            </button>
+        </div>
+    </div>
+
+    <!-- Routing Query Configuration Card -->
+    <div class="filter-card">
+        <form id="routingForm" onsubmit="event.preventDefault(); window.IMS.computeRoute();" class="routing-form">
+            <div class="routing-input-grid">
+                <div class="form-group">
+                    <label for="routeOrigin" class="form-label">Origin Hub:</label>
+                    <select id="routeOrigin" class="form-control" required>
+                        <option value="wh-01" selected>Chicago Central DC (wh-01)</option>
+                        <option value="wh-02">Detroit Regional DC (wh-02)</option>
+                        <option value="wh-03">Columbus Transit Hub (wh-03)</option>
+                        <option value="wh-04">New York Sortation Facility (wh-04)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="routeDest" class="form-label">Destination Hub:</label>
+                    <select id="routeDest" class="form-control" required>
+                        <option value="wh-04" selected>New York Sortation Facility (wh-04)</option>
+                        <option value="wh-01">Chicago Central DC (wh-01)</option>
+                        <option value="wh-02">Detroit Regional DC (wh-02)</option>
+                        <option value="wh-03">Columbus Transit Hub (wh-03)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="routeCriteria" class="form-label">Optimization Criteria:</label>
+                    <select id="routeCriteria" class="form-control">
+                        <option value="distance" selected>Shortest Distance (km)</option>
+                        <option value="cost">Least Freight Cost ($)</option>
+                        <option value="time">Fastest Transit Time (hours)</option>
+                        <option value="balanced">Balanced Composite (Distance + Cost)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="routeAlgorithm" class="form-label">Graph Algorithm:</label>
+                    <select id="routeAlgorithm" class="form-control">
+                        <option value="dijkstra" selected>Dijkstra Shortest Path</option>
+                        <option value="astar">A* Haversine Heuristic (h(u) &le; d(u))</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Outage Simulation Toggle & Submit Row -->
+            <div class="routing-submit-row flex-between">
+                <div class="outage-toggle-group">
+                    <label class="switch-label">
+                        <input type="checkbox" id="outageSimulationToggle" onchange="window.IMS.toggleOutageInputs()">
+                        <span class="switch-slider"></span>
+                        <span class="switch-text"><strong>Simulate Network Edge Failure / Corridor Outage</strong></span>
+                    </label>
+                    <div id="outageEdgeSelectorGroup" class="outage-selector-container d-none">
+                        <select id="outageFailedEdge" class="form-control form-control-sm">
+                            <option value="corr_wh03_wh04" selected>Corridor: Columbus Hub &rarr; New York LSF (corr_wh03_wh04)</option>
+                            <option value="corr_wh01_wh03">Corridor: Chicago CDC &rarr; Columbus Hub (corr_wh01_wh03)</option>
+                            <option value="corr_wh01_wh02">Corridor: Chicago CDC &rarr; Detroit RDC (corr_wh01_wh02)</option>
+                            <option value="corr_wh02_wh04">Corridor: Detroit RDC &rarr; New York LSF (corr_wh02_wh04)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="computeRouteBtn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                    Calculate Optimal Path
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Bottleneck Warning Alerts (Dynamic Container) -->
+    <div id="bottleneckAlertsContainer" class="bottlenecks-wrapper">
+        <div class="alert-bottleneck">
+            <div class="alert-icon-area">⚠️</div>
+            <div class="alert-details">
+                <strong>Capacity Bottleneck Detected: Corridor Columbus Hub (wh-03) &rarr; New York LSF (wh-04)</strong>
+                <p>Capacity Utilization Ratio: <strong>\(\rho = 0.886\)</strong> (31,000 kg / 35,000 kg capacity, exceeds \(\rho \ge 0.85\) threshold). Edge Betweenness Centrality: <strong>0.3333</strong>.</p>
+                <small class="text-warning">Operational Recommendation: Divert high-volume freight batches via Detroit corridor or initiate dynamic reroute.</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Route Results & Topology Graph Grid -->
+    <div class="grid-2col">
+        <!-- Left: Route Hop Sequence & Cost Breakdown -->
+        <div class="dashboard-panel">
+            <div class="panel-header flex-between">
+                <h3 class="panel-title">Calculated Route Path &amp; Metrics</h3>
+                <span class="badge-pill bg-success" id="routeAlgorithmBadge">Dijkstra Optimal</span>
+            </div>
+
+            <!-- Route Metrics Summary Cards -->
+            <div class="route-metrics-summary">
+                <div class="metric-box">
+                    <span class="metric-label">Total Distance</span>
+                    <strong class="metric-val" id="metricDistance">1,435.0 km</strong>
+                </div>
+                <div class="metric-box">
+                    <span class="metric-label">Total Freight Cost</span>
+                    <strong class="metric-val" id="metricCost">$1,520.00</strong>
+                </div>
+                <div class="metric-box">
+                    <span class="metric-label">Est. Transit Time</span>
+                    <strong class="metric-val" id="metricTime">15.5 hours</strong>
+                </div>
+                <div class="metric-box">
+                    <span class="metric-label">Hop Count</span>
+                    <strong class="metric-val" id="metricHops">2 Hops</strong>
+                </div>
+            </div>
+
+            <!-- Outage Delta Comparison (Visible when outage simulation executed) -->
+            <div id="outageDeltaCard" class="outage-delta-card d-none">
+                <h4 class="delta-title">Reroute Impact Delta Analysis</h4>
+                <div class="delta-grid">
+                    <div class="delta-item">
+                        <span>Distance Delta:</span>
+                        <strong class="text-danger" id="deltaDist">+10.0 km</strong>
+                    </div>
+                    <div class="delta-item">
+                        <span>Cost Delta:</span>
+                        <strong class="text-danger" id="deltaCost">+$110.00</strong>
+                    </div>
+                    <div class="delta-item">
+                        <span>Time Delta:</span>
+                        <strong class="text-danger" id="deltaTime">-0.2 hrs</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step by Step Hops Timeline -->
+            <h4 class="subhead-title">Corridor Traversal Sequence</h4>
+            <div class="hops-list" id="routeHopsList">
+                <div class="hop-item">
+                    <div class="hop-number">1</div>
+                    <div class="hop-details">
+                        <div class="flex-between">
+                            <strong>Chicago CDC (wh-01) &rarr; Columbus Transit Hub (wh-03)</strong>
+                            <span class="badge-status status-healthy">ROAD_FREIGHT</span>
+                        </div>
+                        <p class="hop-meta">Distance: 570.0 km &bull; Time: 6.0 hrs &bull; Base Cost: $600.00 &bull; Status: ACTIVE</p>
+                    </div>
+                </div>
+
+                <div class="hop-item">
+                    <div class="hop-number">2</div>
+                    <div class="hop-details">
+                        <div class="flex-between">
+                            <strong>Columbus Transit Hub (wh-03) &rarr; New York LSF (wh-04)</strong>
+                            <span class="badge-status status-healthy">ROAD_FREIGHT</span>
+                        </div>
+                        <p class="hop-meta">Distance: 865.0 km &bull; Time: 9.5 hrs &bull; Base Cost: $920.00 &bull; Status: ACTIVE</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Interactive Network Topology Map (SVG) -->
+        <div class="dashboard-panel">
+            <div class="panel-header flex-between">
+                <h3 class="panel-title">Geographic Logistics Multigraph Topology</h3>
+                <span class="badge-pill bg-info">4 Hubs &bull; 10 Corridors</span>
+            </div>
+
+            <!-- Interactive SVG Topology Visualizer -->
+            <div class="topology-svg-container">
+                <svg id="networkGraphSvg" viewBox="0 0 600 400" class="network-svg">
+                    <!-- Edge Lines -->
+                    <defs>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"></path>
+                        </marker>
+                        <marker id="arrow-active" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6"></path>
+                        </marker>
+                        <marker id="arrow-outage" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444"></path>
+                        </marker>
+                    </defs>
+
+                    <!-- Edges: CHI -> DET -->
+                    <line x1="120" y1="140" x2="280" y2="100" class="edge-corridor" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"></line>
+                    <!-- Edges: CHI -> CMH (Active Hop 1) -->
+                    <line x1="120" y1="140" x2="310" y2="240" class="edge-corridor edge-path-active" id="edge_wh01_wh03" stroke="#3b82f6" stroke-width="4" marker-end="url(#arrow-active)"></line>
+                    <!-- Edges: DET -> CMH -->
+                    <line x1="280" y1="100" x2="310" y2="240" class="edge-corridor" id="edge_wh02_wh03" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"></line>
+                    <!-- Edges: DET -> NYC -->
+                    <line x1="280" y1="100" x2="490" y2="170" class="edge-corridor" id="edge_wh02_wh04" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"></line>
+                    <!-- Edges: CMH -> NYC (Active Hop 2 / Bottleneck) -->
+                    <line x1="310" y1="240" x2="490" y2="170" class="edge-corridor edge-path-active" id="edge_wh03_wh04" stroke="#3b82f6" stroke-width="4" marker-end="url(#arrow-active)"></line>
+
+                    <!-- Nodes -->
+                    <!-- Chicago CDC: (120, 140) -->
+                    <g class="graph-node-group" transform="translate(120, 140)">
+                        <circle r="18" fill="#1e293b" stroke="#3b82f6" stroke-width="3"></circle>
+                        <text y="5" text-anchor="middle" fill="#f8fafc" font-size="10" font-weight="bold">CHI</text>
+                        <text y="32" text-anchor="middle" fill="#94a3b8" font-size="11">Chicago CDC</text>
+                    </g>
+
+                    <!-- Detroit RDC: (280, 100) -->
+                    <g class="graph-node-group" transform="translate(280, 100)">
+                        <circle r="18" fill="#1e293b" stroke="#64748b" stroke-width="2"></circle>
+                        <text y="5" text-anchor="middle" fill="#f8fafc" font-size="10" font-weight="bold">DET</text>
+                        <text y="32" text-anchor="middle" fill="#94a3b8" font-size="11">Detroit RDC</text>
+                    </g>
+
+                    <!-- Columbus Hub: (310, 240) -->
+                    <g class="graph-node-group" transform="translate(310, 240)">
+                        <circle r="18" fill="#1e293b" stroke="#f59e0b" stroke-width="3"></circle>
+                        <text y="5" text-anchor="middle" fill="#f8fafc" font-size="10" font-weight="bold">CMH</text>
+                        <text y="32" text-anchor="middle" fill="#94a3b8" font-size="11">Columbus Hub</text>
+                    </g>
+
+                    <!-- New York LSF: (490, 170) -->
+                    <g class="graph-node-group" transform="translate(490, 170)">
+                        <circle r="18" fill="#1e293b" stroke="#10b981" stroke-width="3"></circle>
+                        <text y="5" text-anchor="middle" fill="#f8fafc" font-size="10" font-weight="bold">NYC</text>
+                        <text y="32" text-anchor="middle" fill="#94a3b8" font-size="11">New York LSF</text>
+                    </g>
+                </svg>
+            </div>
+            <div class="map-legend">
+                <span class="legend-item"><span class="legend-line line-blue"></span> Active Optimal Path</span>
+                <span class="legend-item"><span class="legend-circle circle-amber"></span> High Centrality Hub</span>
+                <span class="legend-item"><span class="legend-line line-red"></span> Simulated Edge Outage</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

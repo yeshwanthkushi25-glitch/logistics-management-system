@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Shipment Tracking{% endblock %}
+
+{% block content %}
+<div class="tracking-wrapper">
+    <!-- Header -->
+    <div class="page-header">
+        <h1 class="page-title">7-State Shipment Lifecycle & Telemetry Tracker</h1>
+        <p class="page-subtitle">Inspect finite state machine transitions, milestone audit logs, and real-time NoSQL IoT sensor pings.</p>
+    </div>
+
+    <!-- Search & Quick Selection Bar -->
+    <div class="tracking-search-card">
+        <form id="trackingForm" onsubmit="event.preventDefault(); window.IMS.searchTracking();" class="tracking-form">
+            <div class="search-input-group">
+                <label for="trackingInput" class="sr-only">Tracking Number</label>
+                <input type="text" id="trackingInput" name="trk" class="form-control tracking-input" 
+                       placeholder="Enter tracking number (e.g., TRK-CHI-NYC-8801, TRK-CHI-DET-9902)" 
+                       value="{{ tracking_number | default('TRK-CHI-NYC-8801') }}" required>
+                <button type="submit" class="btn btn-primary btn-search">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    Track
+                </button>
+            </div>
+            <div class="demo-quick-select">
+                <span class="quick-label">Demo Consignments:</span>
+                <button type="button" class="btn-chip" onclick="window.IMS.setTrackingNumber('TRK-CHI-NYC-8801')">TRK-CHI-NYC-8801 (Delivered)</button>
+                <button type="button" class="btn-chip" onclick="window.IMS.setTrackingNumber('TRK-CHI-DET-9902')">TRK-CHI-DET-9902 (In Transit)</button>
+                <button type="button" class="btn-chip" onclick="window.IMS.setTrackingNumber('TRK-20261109-0081')">TRK-20261109-0081 (Delivered)</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tracking Results Container -->
+    <div id="trackingResultContainer" class="tracking-result-container">
+        <!-- Shipment Metadata Card -->
+        <div class="tracking-meta-card">
+            <div class="meta-header flex-between">
+                <div>
+                    <span class="meta-label">Consignment Tracking Number</span>
+                    <h2 class="meta-title" id="displayTrackingNumber">{{ shipment.tracking_number | default('TRK-CHI-NYC-8801') }}</h2>
+                </div>
+                <div class="meta-status-group">
+                    <span class="badge-status status-{{ shipment.status | lower | default('delivered') }}" id="displayStatus">
+                        {{ shipment.status | default('DELIVERED') }}
+                    </span>
+                    <span class="cache-badge" id="displayCacheStatus" title="Cache-Aside Layer Status">
+                        ⚡ Cache HIT (0.4ms)
+                    </span>
+                </div>
+            </div>
+
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <span class="meta-sub">Origin Hub:</span>
+                    <strong id="displayOrigin">{{ shipment.origin_warehouse | default('Chicago Central Distribution Center (wh-01)') }}</strong>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-sub">Destination:</span>
+                    <strong id="displayDestination">{{ shipment.destination | default('New York, NY 10118') }}</strong>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-sub">Freight Carrier:</span>
+                    <strong id="displayCarrier">{{ shipment.carrier | default('Apex Freight Express') }}</strong>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-sub">Service Level:</span>
+                    <strong id="displayServiceLevel">{{ shipment.service_level | default('EXPRESS') }}</strong>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-sub">Assigned Driver:</span>
+                    <strong id="displayDriver">{{ shipment.driver_name | default('David Chen (user_driver)') }}</strong>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-sub">Order ID:</span>
+                    <strong id="displayOrderId">{{ shipment.order_id | default('ord_001') }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7-State Visual Progress Stepper -->
+        <div class="stepper-card">
+            <h3 class="card-subtitle">7-State Finite State Machine (FSM) Lifecycle</h3>
+            <div class="stepper-track" id="fsmStepper">
+                <!-- Step 1: CREATED -->
+                <div class="step-node step-completed" data-state="CREATED">
+                    <div class="step-circle"><span class="step-icon">✓</span></div>
+                    <div class="step-content">
+                        <strong class="step-title">CREATED</strong>
+                        <span class="step-time" id="timeCreated">Nov 09, 10:00</span>
+                    </div>
+                </div>
+                <div class="step-line line-completed"></div>
+
+                <!-- Step 2: PICKED_UP -->
+                <div class="step-node step-completed" data-state="PICKED_UP">
+                    <div class="step-circle"><span class="step-icon">✓</span></div>
+                    <div class="step-content">
+                        <strong class="step-title">PICKED_UP</strong>
+                        <span class="step-time" id="timePickedUp">Nov 09, 11:30</span>
+                    </div>
+                </div>
+                <div class="step-line line-completed"></div>
+
+                <!-- Step 3: IN_TRANSIT -->
+                <div class="step-node step-completed" data-state="IN_TRANSIT">
+                    <div class="step-circle"><span class="step-icon">✓</span></div>
+                    <div class="step-content">
+                        <strong class="step-title">IN_TRANSIT</strong>
+                        <span class="step-time" id="timeInTransit">Nov 09, 16:00</span>
+                    </div>
+                </div>
+                <div class="step-line line-completed"></div>
+
+                <!-- Step 4: OUT_FOR_DELIVERY -->
+                <div class="step-node step-completed" data-state="OUT_FOR_DELIVERY">
+                    <div class="step-circle"><span class="step-icon">✓</span></div>
+                    <div class="step-content">
+                        <strong class="step-title">OUT_FOR_DELIVERY</strong>
+                        <span class="step-time" id="timeOutForDelivery">Nov 09, 20:00</span>
+                    </div>
+                </div>
+                <div class="step-line line-completed"></div>
+
+                <!-- Step 5: DELIVERED (Terminal) -->
+                <div class="step-node step-active" data-state="DELIVERED">
+                    <div class="step-circle"><span class="step-icon">★</span></div>
+                    <div class="step-content">
+                        <strong class="step-title">DELIVERED</strong>
+                        <span class="step-time" id="timeDelivered">Nov 09, 21:15</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Exception / Returned Callouts (shown dynamically if in exception state) -->
+            <div id="exceptionBanner" class="exception-callout d-none">
+                <span class="callout-icon">⚠</span>
+                <span class="callout-text">Consignment entered an EXCEPTION state. Recovery transit route in progress.</span>
+            </div>
+        </div>
+
+        <!-- Two Column View: Timeline & Telemetry Coordinates -->
+        <div class="grid-2col">
+            <!-- Left: Milestone Audit Chronology -->
+            <div class="dashboard-panel">
+                <div class="panel-header">
+                    <h3 class="panel-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Milestone Audit Chronology
+                    </h3>
+                </div>
+                <div class="milestones-timeline" id="milestonesList">
+                    <div class="milestone-entry">
+                        <div class="milestone-badge bg-primary">1</div>
+                        <div class="milestone-info">
+                            <div class="flex-between">
+                                <strong>MANIFEST_CREATED</strong>
+                                <span class="text-muted">2026-11-09 10:00:00</span>
+                            </div>
+                            <p class="milestone-loc">📍 Chicago CDC (41.7637, -87.7410)</p>
+                            <p class="milestone-notes">Order manifest created and packaged.</p>
+                            <small class="text-secondary">Recorded by: user_wm_chi</small>
+                        </div>
+                    </div>
+
+                    <div class="milestone-entry">
+                        <div class="milestone-badge bg-primary">2</div>
+                        <div class="milestone-info">
+                            <div class="flex-between">
+                                <strong>PICKUP_COMPLETED</strong>
+                                <span class="text-muted">2026-11-09 11:30:00</span>
+                            </div>
+                            <p class="milestone-loc">📍 Chicago CDC Dock 04 (41.7637, -87.7410)</p>
+                            <p class="milestone-notes">Driver picked up consignment.</p>
+                            <small class="text-secondary">Recorded by: user_driver</small>
+                        </div>
+                    </div>
+
+                    <div class="milestone-entry">
+                        <div class="milestone-badge bg-primary">3</div>
+                        <div class="milestone-info">
+                            <div class="flex-between">
+                                <strong>HUB_ARRIVAL</strong>
+                                <span class="text-muted">2026-11-09 16:00:00</span>
+                            </div>
+                            <p class="milestone-loc">📍 Columbus Transit Cross-Dock (39.9980, -82.8919)</p>
+                            <p class="milestone-notes">Sortation scan completed at Hub.</p>
+                            <small class="text-secondary">Recorded by: user_dispatcher</small>
+                        </div>
+                    </div>
+
+                    <div class="milestone-entry">
+                        <div class="milestone-badge bg-primary">4</div>
+                        <div class="milestone-info">
+                            <div class="flex-between">
+                                <strong>OUT_FOR_DELIVERY_SCAN</strong>
+                                <span class="text-muted">2026-11-09 20:00:00</span>
+                            </div>
+                            <p class="milestone-loc">📍 New York Sortation Facility (40.7589, -73.8648)</p>
+                            <p class="milestone-notes">Loaded onto final mile vehicle.</p>
+                            <small class="text-secondary">Recorded by: user_driver</small>
+                        </div>
+                    </div>
+
+                    <div class="milestone-entry milestone-success">
+                        <div class="milestone-badge bg-success">✓</div>
+                        <div class="milestone-info">
+                            <div class="flex-between">
+                                <strong>DELIVERY_COMPLETED</strong>
+                                <span class="text-muted">2026-11-09 21:15:00</span>
+                            </div>
+                            <p class="milestone-loc">📍 Customer Destination NY (40.7484, -73.9857)</p>
+                            <p class="milestone-notes">Delivered and digital proof captured.</p>
+                            <small class="text-secondary">Recorded by: user_driver</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Interactive IoT Telemetry Coordinates & POD View -->
+            <div class="dashboard-panel">
+                <div class="panel-header">
+                    <h3 class="panel-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+                        IoT Telemetry Readings (NoSQL)
+                    </h3>
+                </div>
+
+                <!-- Sensor Stats Grid -->
+                <div class="telemetry-grid" id="telemetryGrid">
+                    <div class="telemetry-card">
+                        <span class="telemetry-label">GPS Latitude</span>
+                        <strong class="telemetry-val" id="telemLat">40.7484° N</strong>
+                    </div>
+                    <div class="telemetry-card">
+                        <span class="telemetry-label">GPS Longitude</span>
+                        <strong class="telemetry-val" id="telemLon">-73.9857° W</strong>
+                    </div>
+                    <div class="telemetry-card">
+                        <span class="telemetry-label">Compartment Temp</span>
+                        <strong class="telemetry-val text-success" id="telemTemp">4.2°C</strong>
+                        <small class="telemetry-tag">Cold-chain Safe</small>
+                    </div>
+                    <div class="telemetry-card">
+                        <span class="telemetry-label">Shock Impact</span>
+                        <strong class="telemetry-val" id="telemShock">0.08 G</strong>
+                        <small class="telemetry-tag">Normal</small>
+                    </div>
+                </div>
+
+                <!-- Geographic Coordinates Visualizer -->
+                <div class="map-visualizer-container">
+                    <div class="map-canvas-mock" id="trackingMapMock">
+                        <div class="map-point point-origin" title="Chicago CDC">
+                            <span class="point-dot"></span>
+                            <span class="point-label">Chicago CDC</span>
+                        </div>
+                        <div class="map-line-dashed"></div>
+                        <div class="map-point point-hub" title="Columbus Hub">
+                            <span class="point-dot"></span>
+                            <span class="point-label">Columbus Hub</span>
+                        </div>
+                        <div class="map-line-dashed"></div>
+                        <div class="map-point point-dest" title="New York Dest">
+                            <span class="point-dot active-dot"></span>
+                            <span class="point-label">New York Dest</span>
+                        </div>
+                    </div>
+                    <p class="map-caption">Real-time GPS coordinate telemetry plotted across transport network corridors.</p>
+                </div>
+
+                <!-- Proof of Delivery Section -->
+                <div class="pod-section" id="podSection">
+                    <h4 class="pod-title">Proof of Delivery (POD) Documentation</h4>
+                    <div class="pod-card">
+                        <div class="pod-icon">📜</div>
+                        <div class="pod-details">
+                            <strong>Electronic Delivery Receipt &amp; Signature</strong>
+                            <p>Signed by: <code>Alice Smith (Customer)</code> &bull; Timestamp: <code>2026-11-09 21:15:00 UTC</code></p>
+                            <span class="pod-cloud-badge">Cloud Object Storage: S3 / LocalStorageFallback</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Driver Action Controls (for simulation & evaluation) -->
+                <div class="driver-actions-panel">
+                    <h4 class="driver-panel-title">Operational Simulation Controls</h4>
+                    <div class="driver-btns-flex">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="window.IMS.simulateStatusAdvance()">
+                            Advance Status (FSM)
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="window.IMS.simulateTelemetryPing()">
+                            Send Telemetry Ping (NoSQL)
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="window.IMS.simulatePodUpload()">
+                            Upload POD Signature
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
