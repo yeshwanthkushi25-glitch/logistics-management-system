@@ -509,7 +509,15 @@ def init_database(
     Returns:
         Configured sqlite3.Connection instance.
     """
-    from app.db.connection import get_db_connection, set_default_db_path
+    from app.db.connection import (
+        get_db_connection,
+        set_default_db_path,
+        get_default_db_path,
+        _CANONICAL_DB_PATH,
+        _LEGACY_DB_PATH,
+    )
+
+    target_path = db_path or get_default_db_path()
 
     if db_path and db_path != ":memory:":
         set_default_db_path(db_path)
@@ -535,6 +543,22 @@ def init_database(
     if seed_demo_data:
         counts = seed_demo_dataset(conn)
         logger.info(f"Seeding completed: {counts}")
+
+    # Backwards compatibility: synchronize populated database between canonical and legacy paths
+    if target_path != ":memory:":
+        try:
+            abs_target = os.path.abspath(target_path)
+            canonical_abs = os.path.abspath(_CANONICAL_DB_PATH)
+            legacy_abs = os.path.abspath(_LEGACY_DB_PATH)
+            if abs_target in (canonical_abs, legacy_abs):
+                other_path = legacy_abs if abs_target == canonical_abs else canonical_abs
+                os.makedirs(os.path.dirname(other_path), exist_ok=True)
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                import shutil
+                shutil.copyfile(abs_target, other_path)
+                logger.info(f"Synchronized database to compatibility path: {other_path}")
+        except Exception as sync_err:
+            logger.warning(f"Could not synchronize compatibility database path: {sync_err}")
 
     return conn
 

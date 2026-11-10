@@ -34,12 +34,17 @@ echo -e "\033[1;33m[2/4] Verifying database status...\033[0m"
 DB_PATH1="$PROJECT_ROOT/data/logistics.db"
 DB_PATH2="$PROJECT_ROOT/app/data/logistics.db"
 
-if [ ! -f "$DB_PATH1" ] && [ ! -f "$DB_PATH2" ]; then
+HAS_TABLES=0
+if [ -f "$DB_PATH1" ]; then
+    HAS_TABLES=$($PY_CMD -c "import sqlite3; conn = sqlite3.connect('$DB_PATH1'); c = conn.cursor(); c.execute(\"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='warehouses'\"); print(c.fetchone()[0]); conn.close()" 2>/dev/null || echo 0)
+fi
+
+if [ "$HAS_TABLES" -eq 0 ]; then
     echo -e "\033[1;36m       Initializing database schema and seeding demo dataset...\033[0m"
-    PYTHONPATH="$PROJECT_ROOT" $PY_CMD -m app.db.init_db --seed
+    PYTHONPATH="$PROJECT_ROOT" $PY_CMD -m app.db.init_db --seed --db-path "$DB_PATH1"
     echo -e "\033[1;32m       Database initialized and seeded successfully.\033[0m"
 else
-    echo -e "\033[1;32m       Database file located (WAL mode ready).\033[0m"
+    echo -e "\033[1;32m       Database file located and verified (WAL mode ready).\033[0m"
 fi
 
 # 3. Environment Variables

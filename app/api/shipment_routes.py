@@ -162,6 +162,15 @@ def bulk_batch_shipments():
         user_row = cur.fetchone()
         valid_user_id = user_row["id"] if user_row else "usr-test-customer-01"
 
+        # Verify whether actor_id exists in users table (foreign key constraint)
+        # If not, set to None because shipment_milestones.recorded_by is nullable
+        sanitized_actor_id = None
+        if actor_id:
+            cur.execute("SELECT id FROM users WHERE id = ?", (actor_id,))
+            actor_row = cur.fetchone()
+            if actor_row:
+                sanitized_actor_id = actor_row["id"]
+
         # Default fallback warehouse coordinates
         default_wh = {
             "name": "Central Hub",
@@ -201,7 +210,7 @@ def bulk_batch_shipments():
             milestones_to_insert.append((
                 f"ms_{uuid.uuid4().hex[:12]}", shp_id, "MANIFEST_CREATED",
                 wh_info["name"], wh_info["latitude"], wh_info["longitude"],
-                f"Batch manifest ingestion ({batch_id})", actor_id
+                f"Batch manifest ingestion ({batch_id})", sanitized_actor_id
             ))
 
             created_shipments.append({

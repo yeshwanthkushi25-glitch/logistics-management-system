@@ -18,11 +18,11 @@ _thread_local = threading.local()
 _global_lock = threading.Lock()
 _active_connections: Set[sqlite3.Connection] = set()
 
-# Default SQLite database file path (can be overridden via environment or set_default_db_path)
-_DEFAULT_DB_PATH = os.environ.get(
-    "DATABASE_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "logistics.db")
-)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_CANONICAL_DB_PATH = os.path.join(_PROJECT_ROOT, "data", "logistics.db")
+_LEGACY_DB_PATH = os.path.join(_PROJECT_ROOT, "app", "data", "logistics.db")
+
+_DEFAULT_DB_PATH = os.environ.get("DATABASE_PATH", _CANONICAL_DB_PATH)
 
 
 def set_default_db_path(path: str) -> None:
@@ -54,6 +54,22 @@ def create_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
         parent_dir = os.path.dirname(os.path.abspath(target_path))
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
+
+        # Backwards compatibility synchronization:
+        # If accessing canonical or legacy path, and requested file is unpopulated (<= 4096 bytes)
+        # while the alternate file is populated (> 4096 bytes), synchronize from the populated database.
+        abs_target = os.path.abspath(target_path)
+        canonical_abs = os.path.abspath(_CANONICAL_DB_PATH)
+        legacy_abs = os.path.abspath(_LEGACY_DB_PATH)
+
+        if abs_target == canonical_abs:
+            if (not os.path.exists(canonical_abs) or os.path.getsize(canonical_abs) <= 4096) and os.path.exists(legacy_abs) and os.path.getsize(legacy_abs) > 4096:
+                import shutil
+                shutil.copyfile(legacy_abs, canonical_abs)
+        elif abs_target == legacy_abs:
+            if (not os.path.exists(legacy_abs) or os.path.getsize(legacy_abs) <= 4096) and os.path.exists(canonical_abs) and os.path.getsize(canonical_abs) > 4096:
+                import shutil
+                shutil.copyfile(canonical_abs, legacy_abs)
 
     conn = sqlite3.connect(
         target_path,

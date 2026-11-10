@@ -37,19 +37,27 @@ Write-Host "[2/4] Verifying database status..." -ForegroundColor Yellow
 $DbPath1 = Join-Path $ProjectRoot "data\logistics.db"
 $DbPath2 = Join-Path $ProjectRoot "app\data\logistics.db"
 
-$DbNeedsInit = $RebuildDb -or ((-not (Test-Path $DbPath1)) -and (-not (Test-Path $DbPath2)))
+$HasTables = $false
+if (Test-Path $DbPath1) {
+    $TableCount = & $PythonCmd -c "import sqlite3; conn = sqlite3.connect(r'$DbPath1'); c = conn.cursor(); c.execute('SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'warehouses\''); print(c.fetchone()[0]); conn.close()" 2>$null
+    if ($TableCount -and [int]$TableCount -gt 0) {
+        $HasTables = $true
+    }
+}
+
+$DbNeedsInit = $RebuildDb -or (-not $HasTables)
 
 if ($DbNeedsInit) {
     Write-Host "       Initializing database schema and seeding demo dataset..." -ForegroundColor Cyan
     $env:PYTHONPATH = $ProjectRoot
-    & $PythonCmd -m app.db.init_db --seed
+    & $PythonCmd -m app.db.init_db --seed --db-path "$DbPath1"
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Database initialization failed with exit code $LASTEXITCODE."
         exit $LASTEXITCODE
     }
     Write-Host "       Database initialized and seeded successfully." -ForegroundColor Green
 } else {
-    Write-Host "       Database file located (WAL mode ready)." -ForegroundColor Green
+    Write-Host "       Database file located and verified (WAL mode ready)." -ForegroundColor Green
 }
 
 # 3. Configure Runtime Environment Variables

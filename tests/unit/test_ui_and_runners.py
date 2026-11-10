@@ -10,6 +10,8 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def test_jinja2_templates_parse_cleanly():
@@ -149,6 +151,30 @@ def test_readme_academic_coverage():
         assert kw in md, f"README.md missing key section or keyword: '{kw}'"
 
 
+def test_live_server_default_config_queries_warehouses():
+    """
+    Validates that create_app() initialized without test overrides (default configuration)
+    points to a populated database and can query warehouses without sqlite3.OperationalError.
+    """
+    from app import create_app
+    from app.db.connection import get_db_connection
+
+    app = create_app()
+    with app.app_context():
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT count(*) FROM warehouses")
+        count = cur.fetchone()[0]
+        assert count > 0, "Default database must contain seeded warehouses"
+
+        client = app.test_client()
+        resp = client.get("/api/v1/inventory/warehouses")
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.get_data(as_text=True)}"
+        data = resp.get_json()
+        assert "warehouses" in data
+        assert len(data["warehouses"]) > 0
+
+
 if __name__ == "__main__":
     test_jinja2_templates_parse_cleanly()
     print("PASS: test_jinja2_templates_parse_cleanly")
@@ -160,4 +186,6 @@ if __name__ == "__main__":
     print("PASS: test_docker_configurations")
     test_readme_academic_coverage()
     print("PASS: test_readme_academic_coverage")
+    test_live_server_default_config_queries_warehouses()
+    print("PASS: test_live_server_default_config_queries_warehouses")
     print("ALL VERIFICATION CHECKS PASSED!")
